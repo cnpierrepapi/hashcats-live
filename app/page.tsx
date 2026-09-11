@@ -21,8 +21,10 @@ export default function Dashboard() {
   const [market, setMarket] = useState<Market | null>(null);
   const [moves, setMoves] = useState<Move[]>([]);
   const [final, setFinal] = useState(17000);
-  const [live, setLive] = useState(false);
+  // One failed read shouldn't flip the light: live means a good read or a log in the last 15s.
+  const [lastOk, setLastOk] = useState(0);
   const [now, setNow] = useState(() => Date.now() / 1000);
+  const live = now - lastOk < 15;
   const seen = useRef(new Set<string>());
 
   const addMoves = (items: Move[]) => {
@@ -50,10 +52,8 @@ export default function Dashboard() {
           targetBits: 256 - target.toString(2).length,
           burned: Number(burned),
         });
-        setLive(true);
-      } catch {
-        setLive(false);
-      }
+        setLastOk(Date.now() / 1000);
+      } catch {}
     };
     refresh();
     const timer = setInterval(refresh, 5000);
@@ -75,9 +75,9 @@ export default function Dashboard() {
             };
           }),
         );
+        setLastOk(Date.now() / 1000);
         refresh();
       },
-      onError: () => setLive(false),
     });
     return () => {
       clearInterval(timer);
@@ -140,10 +140,10 @@ export default function Dashboard() {
         {[
           ["Cats", chain ? `${chain.total} / ${chain.burned} burned` : "–", ""],
           ["Epoch · target", chain ? `${chain.epoch} · ${chain.targetBits} bits` : "–", ""],
-          ["Mint price", chain ? `${f(chain.mintPrice)} Ξ` : "–", "work"],
+          ["Mint price", chain ? `${f(chain.mintPrice)} ETH` : "–", "work"],
           ["$HASH", market?.hashEth ? `$${(market.hashEth * (market.ethUsd ?? 0)).toFixed(3)}` : "–", "chain"],
-          ["Burn pays", market?.hashEth ? `${f(market.hashEth * 1000)} Ξ` : "–", "mine"],
-          ["Floor", floor ? `${f(floor.ask)} Ξ` : "–", "rare"],
+          ["Burn pays", market?.hashEth ? `${f(market.hashEth * 1000)} ETH` : "–", "mine"],
+          ["Floor", floor ? `${f(floor.ask)} ETH` : "–", "rare"],
           ["Last mint", chain ? `${ago(chain.lastMint, now)} ago` : "–", ""],
         ].map(([label, val, tone]) => (
           <div key={label} className={`stat frame ${tone}`}>
@@ -161,7 +161,7 @@ export default function Dashboard() {
 
       <div className="cols">
         <section className={`frame ${TONE_FRAME[call.tone]}`}>
-          <div className="bar"><span>Listings</span><span>best value per Ξ</span></div>
+          <div className="bar"><span>Listings</span><span>best value per ETH</span></div>
           <div className="inner">
             <label className="final">
               Collection ends at <b className="mono">{final.toLocaleString()}</b> cats

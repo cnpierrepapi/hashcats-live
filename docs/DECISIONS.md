@@ -22,6 +22,12 @@ The collection-size slider changes every hold value. If the server did the valui
 
 Burn value assumes spot price with no slippage, and the $HASH pool moves a lot. Hold value assumes a collection size nobody can promise. A 15% cushion keeps the sentence from flipping to "buy" on noise.
 
+## the look matches hashcats.fun, rebuilt, not lifted
+
+Same palette, same three Google fonts (Jersey 10, DotGothic16, VT323), same 3px pixel grid and dotted background. Their frames are 27px PNGs: an ink outline, a light edge top-left, a dark edge bottom-right, base colour between. Here they're three stacked inset box-shadows with the same colours, so there are no copied image files and any frame can take any colour.
+
+The header says "unofficial tracker" and so does the footer. Borrowing their look is fine for a fan tool, passing as their site isn't.
+
 ## the OpenSea key expires
 
 The free agent key from `POST /api/v2/auth/keys` expires after a week. When the market column goes quiet and the status says `OpenSea 401`, mint a new key and update `OPENSEA_API_KEY` in Vercel.

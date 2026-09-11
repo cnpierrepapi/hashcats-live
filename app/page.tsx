@@ -8,6 +8,8 @@ import { strategy, value, type Chain, type Market } from "@/lib/strategy";
 type Move = { key: string; t: number; kind: "mint" | "burn" | "transfer" | "sale"; id: number; who?: string | null; price?: number; sym?: string; tx?: string | null };
 
 const ZERO = "0x0000000000000000000000000000000000000000";
+const TONE_FRAME = { buy: "work", burn: "mine", wait: "rare" } as const;
+const BUTTON_FRAME = ["work", "chain", "mine", "rare", ""] as const;
 const short = (a?: string | null) => (a ? `${a.slice(0, 6)}…${a.slice(-4)}` : "");
 const ago = (t: number, now: number) => {
   const s = Math.max(0, Math.round(now - t));
@@ -114,87 +116,105 @@ export default function Dashboard() {
 
   return (
     <main>
-      <div className="top">
-        <h1>Hashcats live</h1>
-        <span className="live mono">
-          <i className={live ? "on" : ""} />
-          {live ? "chain live" : "connecting"} · {market?.status.opensea ?? "loading market"}
+      <header className="top">
+        <div className="logo">
+          <span><span className="h">HASH</span>CATS</span>
+          <span className="tag">LIVE</span>
+          <small>unofficial tracker</small>
+        </div>
+        <span className="chip frame mono">
+          <i className={`dot ${live ? "on" : ""}`} />
+          <span style={{ color: "var(--chain)" }}>{chain ? chain.total.toLocaleString() : "–"}</span> minted
+          <span className="sep" />
+          {market?.status.opensea ?? "loading market"}
         </span>
-      </div>
+      </header>
 
-      <div className={`call ${call.tone}`}>
-        <p>{call.sentence}</p>
-        <p>{call.sub}</p>
-      </div>
+      <section className="hero">
+        <p className="kicker">{live ? "The play right now" : "Connecting to the chain"}</p>
+        <h1 className={call.tone}>{call.sentence}</h1>
+        <p className="sub">{call.sub}</p>
+      </section>
 
-      <div className="stats mono">
-        <div><span>Cats</span><b>{chain ? `${chain.total} · ${chain.burned} burned` : "–"}</b></div>
-        <div><span>Epoch · target</span><b>{chain ? `${chain.epoch} · ${chain.targetBits} bits` : "–"}</b></div>
-        <div><span>Mint price</span><b>{f(chain?.mintPrice)} ETH</b></div>
-        <div><span>$HASH</span><b>{market?.hashEth ? `$${(market.hashEth * (market.ethUsd ?? 0)).toFixed(3)}` : "–"}</b></div>
-        <div><span>Burn pays</span><b>{market?.hashEth ? `${f(market.hashEth * 1000)} ETH` : "–"}</b></div>
-        <div><span>Floor</span><b>{floor ? <a href={catLink(floor.id)} target="_blank">{f(floor.ask)} #{floor.id}</a> : "–"}</b></div>
-        <div><span>Last mint</span><b>{chain ? `${ago(chain.lastMint, now)} ago` : "–"}</b></div>
+      <div className="stats">
+        {[
+          ["Cats", chain ? `${chain.total} / ${chain.burned} burned` : "–", ""],
+          ["Epoch · target", chain ? `${chain.epoch} · ${chain.targetBits} bits` : "–", ""],
+          ["Mint price", chain ? `${f(chain.mintPrice)} Ξ` : "–", "work"],
+          ["$HASH", market?.hashEth ? `$${(market.hashEth * (market.ethUsd ?? 0)).toFixed(3)}` : "–", "chain"],
+          ["Burn pays", market?.hashEth ? `${f(market.hashEth * 1000)} Ξ` : "–", "mine"],
+          ["Floor", floor ? `${f(floor.ask)} Ξ` : "–", "rare"],
+          ["Last mint", chain ? `${ago(chain.lastMint, now)} ago` : "–", ""],
+        ].map(([label, val, tone]) => (
+          <div key={label} className={`stat frame ${tone}`}>
+            <span>{label}</span>
+            <b>{label === "Floor" && floor ? <a href={catLink(floor.id)} target="_blank">{val} #{floor.id}</a> : val}</b>
+          </div>
+        ))}
       </div>
 
       <nav className="links">
-        {Object.entries(LINKS).map(([label, url]) => (
-          <a key={label} href={url} target="_blank">{label} ↗</a>
+        {Object.entries(LINKS).map(([label, url], i) => (
+          <a key={label} className={`btn frame ${BUTTON_FRAME[i]}`} href={url} target="_blank">{label}</a>
         ))}
       </nav>
 
       <div className="cols">
-        <section>
-          <h2>Listings, best value per ETH first</h2>
-          <label className="final">
-            Collection ends at <b className="mono">{final.toLocaleString()}</b> cats
-            <input type="range" min={2000} max={20000} step={500} value={final} onChange={(e) => setFinal(+e.target.value)} />
-          </label>
-          <div className="scroll">
-            <table className="mono">
-              <thead>
-                <tr><th>cat</th><th>ask</th><th>value</th><th>x</th><th>edge</th><th>rent owed</th><th>play</th></tr>
-              </thead>
-              <tbody>
-                {rows.length ? rows.slice(0, 40).map((r) => (
-                  <tr key={r.id}>
-                    <td><a href={catLink(r.id)} target="_blank">#{r.id}</a></td>
-                    <td>{f(r.ask)}</td>
-                    <td>{f(r.value)}</td>
-                    <td className={r.x >= 1.15 ? "good" : "dim"}>{r.x.toFixed(2)}</td>
-                    <td className={r.edge > 0 ? "good" : "dim"}>{r.edge >= 0 ? "+" : ""}{f(r.edge)}</td>
-                    <td>{f(r.claimable, 5)}</td>
-                    <td>{r.path}</td>
-                  </tr>
-                )) : (
-                  <tr><td colSpan={7} className="dim">{market ? "No ETH listings." : "Loading listings…"}</td></tr>
-                )}
-              </tbody>
-            </table>
+        <section className={`frame ${TONE_FRAME[call.tone]}`}>
+          <div className="bar"><span>Listings</span><span>best value per Ξ</span></div>
+          <div className="inner">
+            <label className="final">
+              Collection ends at <b className="mono">{final.toLocaleString()}</b> cats
+              <input type="range" min={2000} max={20000} step={500} value={final} onChange={(e) => setFinal(+e.target.value)} />
+            </label>
+            <div className="scroll">
+              <table>
+                <thead>
+                  <tr><th>cat</th><th>ask</th><th>value</th><th>x</th><th>edge</th><th>rent owed</th><th>play</th></tr>
+                </thead>
+                <tbody>
+                  {rows.length ? rows.slice(0, 40).map((r) => (
+                    <tr key={r.id}>
+                      <td className="mono"><a href={catLink(r.id)} target="_blank">#{r.id}</a></td>
+                      <td className="mono">{f(r.ask)}</td>
+                      <td className="mono">{f(r.value)}</td>
+                      <td className={`mono ${r.x >= 1.15 ? "good" : "dim"}`}>{r.x.toFixed(2)}</td>
+                      <td className={`mono ${r.edge > 0 ? "good" : "dim"}`}>{r.edge >= 0 ? "+" : ""}{f(r.edge)}</td>
+                      <td className="mono">{f(r.claimable, 5)}</td>
+                      <td className="mono">{r.path}</td>
+                    </tr>
+                  )) : (
+                    <tr><td colSpan={7} className="dim">{market ? "No ETH listings." : "Loading listings…"}</td></tr>
+                  )}
+                </tbody>
+              </table>
+            </div>
           </div>
         </section>
 
-        <section>
-          <h2>Moves: chain live, sales every 30s</h2>
-          <ul className="feed">
-            {moves.map((m) => (
-              <li key={m.key} className={now - m.t < 3 ? "fresh" : ""}>
-                <span className={`tag ${m.kind}`}>{m.kind}</span>
-                <a href={catLink(m.id)} target="_blank">#{m.id}</a>
-                {m.kind === "sale" && <b className="mono">{f(m.price)} {m.sym}</b>}
-                {m.who && <a className="mono dim" href={addrLink(m.who)} target="_blank">{short(m.who)}</a>}
-                {m.tx && <a href={txLink(m.tx)} target="_blank">tx</a>}
-                <span className="when mono">{ago(m.t, now)}</span>
-              </li>
-            ))}
-            {!moves.length && <li className="dim">Waiting for the first move…</li>}
-          </ul>
+        <section className="frame chain">
+          <div className="bar"><span>Moves</span><span className="mono" style={{ fontSize: 18 }}>{live ? "▪ live" : "▪ offline"}</span></div>
+          <div className="inner">
+            <ul className="feed">
+              {moves.map((m) => (
+                <li key={m.key} className={now - m.t < 3 ? "fresh" : ""}>
+                  <span className={`kind ${m.kind}`}>{m.kind}</span>
+                  <a className="mono" href={catLink(m.id)} target="_blank">#{m.id}</a>
+                  {m.kind === "sale" && <b className="mono">{f(m.price)} {m.sym}</b>}
+                  {m.who && <a className="mono dim" href={addrLink(m.who)} target="_blank">{short(m.who)}</a>}
+                  {m.tx && <a className="mono" href={txLink(m.tx)} target="_blank">tx</a>}
+                  <span className="when mono">{ago(m.t, now)}</span>
+                </li>
+              ))}
+              {!moves.length && <li className="dim">Waiting for the first move…</li>}
+            </ul>
+          </div>
         </section>
       </div>
 
       <footer>
         Value is the better of two exits. Hold: rent owed now plus 0.000014 ETH for every future mint until the collection ends at the count you set.
-        Burn: rent owed now plus the burn reward in $HASH at the spot price, before slippage. Not financial advice.
+        Burn: rent owed now plus the burn reward in $HASH at the spot price, before slippage. Unofficial, not made by the Hashcats team. Not financial advice.
       </footer>
     </main>
   );

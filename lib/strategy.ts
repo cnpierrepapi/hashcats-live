@@ -25,6 +25,8 @@ export type Market = {
   sales: Sale[];
   status: Record<string, string>;
   fetchedAt: number;
+  usdPerHour: number | null; // cheapest reliable RTX 5090 on vast.ai
+  saleFeePct: number; // OpenSea + creator fee on a sale
 };
 
 export type Chain = {
@@ -34,6 +36,7 @@ export type Chain = {
   lastMint: number;
   targetBits: number;
   burned: number;
+  hookFeeBps: number;
 };
 
 export type Valued = Listing & {
@@ -61,11 +64,7 @@ const f = (n: number, d = 4) => n.toFixed(d);
 
 export function strategy(rows: Valued[], hashEth: number | null, chain: Chain | null, final: number): Call {
   if (hashEth == null || !chain) return { tone: "wait", sentence: "Reading the chain, OpenSea and the pool.", sub: "" };
-  const burnNew = 1000 * hashEth;
   const sub: string[] = [];
-  if (chain.mintPrice > 0) {
-    sub.push(`Mining and burning a new cat pays ${f(burnNew / chain.mintPrice, 1)}x the ${f(chain.mintPrice)} ETH entry, if you have the hashrate for a ${chain.targetBits}-bit target.`);
-  }
   if (!rows.length) return { tone: "wait", sentence: "Wait: there are no ETH listings to buy.", sub: sub.join(" ") };
 
   const best = rows[0];

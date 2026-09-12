@@ -2,7 +2,8 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import { createPublicClient, webSocket } from "viem";
-import { abi, addrLink, catLink, COLLECTION, LINKS, robinhood, transferEvent, txLink, WSS_RPC } from "@/lib/hashcats";
+import { abi, addrLink, catLink, COLLECTION, HOOK, hookAbi, LINKS, robinhood, transferEvent, txLink, WSS_RPC } from "@/lib/hashcats";
+import { miningVerdict, RIG } from "@/lib/mining";
 import { strategy, value, type Chain, type Market } from "@/lib/strategy";
 
 type Move = { key: string; t: number; kind: "mint" | "burn" | "transfer" | "sale"; id: number; who?: string | null; price?: number; sym?: string; tx?: string | null };
@@ -10,6 +11,7 @@ type Move = { key: string; t: number; kind: "mint" | "burn" | "transfer" | "sale
 const ZERO = "0x0000000000000000000000000000000000000000";
 const TONE_FRAME = { buy: "work", burn: "mine", wait: "rare" } as const;
 const BUTTON_FRAME = ["work", "chain", "mine", "rare", ""] as const;
+const median = (xs: number[]) => [...xs].sort((a, b) => a - b)[Math.floor(xs.length / 2)];
 const short = (a?: string | null) => (a ? `${a.slice(0, 6)}…${a.slice(-4)}` : "");
 const ago = (t: number, now: number) => {
   const s = Math.max(0, Math.round(now - t));
@@ -23,6 +25,8 @@ export default function Dashboard() {
   const [final, setFinal] = useState(17000);
   // One failed read shouldn't flip the light: live means a good read or a log in the last 15s.
   const [lastOk, setLastOk] = useState(0);
+  // The target swings a couple of bits with the mint streak, so price mining off the median of recent reads.
+  const [samples, setSamples] = useState<number[]>([]);
   const [now, setNow] = useState(() => Date.now() / 1000);
   const live = now - lastOk < 15;
   const seen = useRef(new Set<string>());
@@ -40,9 +44,12 @@ export default function Dashboard() {
       ({ address: COLLECTION, abi, functionName }) as const;
     const refresh = async () => {
       try {
-        const [total, epoch, price, last, target, burned] = await client.multicall({
+        const [total, epoch, price, last, target, burned, hookFee] = await client.multicall({
           allowFailure: false,
-          contracts: [c("totalMinted"), c("currentEpoch"), c("mintPrice"), c("lastMintTime"), c("currentTarget"), c("burnedCount")],
+          contracts: [
+            c("totalMinted"), c("currentEpoch"), c("mintPrice"), c("lastMintTime"), c("currentTarget"), c("burnedCount"),
+            { address: HOOK, abi: hookAbi, functionName: "currentFee" },
+          ],
         });
         setChain({
           total: Number(total),
@@ -51,7 +58,9 @@ export default function Dashboard() {
           lastMint: Number(last),
           targetBits: 256 - target.toString(2).length,
           burned: Number(burned),
+          hookFeeBps: Number(hookFee),
         });
+        setSamples((prev) => [...prev, Number((1n << 256n) / target)].slice(-12));
         setLastOk(Date.now() / 1000);
       } catch {}
     };
@@ -113,6 +122,20 @@ export default function Dashboard() {
   const call = strategy(rows, market?.hashEth ?? null, chain, final);
   const floor = rows.reduce<(typeof rows)[number] | null>((m, r) => (!m || r.ask < m.ask ? r : m), null);
   const f = (n?: number | null, d = 4) => (n == null ? "–" : n.toFixed(d));
+  const verdict =
+    chain && market?.hashEth && market.ethUsd && market.usdPerHour && samples.length
+      ? miningVerdict({
+          hashesPerCat: median(samples),
+          mintPrice: chain.mintPrice,
+          hashEth: market.hashEth,
+          ethUsd: market.ethUsd,
+          usdPerHour: market.usdPerHour,
+          hookFeeBps: chain.hookFeeBps,
+          floor: floor?.ask ?? null,
+          saleFeePct: market.saleFeePct,
+        })
+      : null;
+  const VERDICT_FRAME = { mine: "work", close: "rare", wait: "alarm" } as const;
 
   return (
     <main>
@@ -134,6 +157,35 @@ export default function Dashboard() {
         <p className="kicker">{live ? "The play right now" : "Connecting to the chain"}</p>
         <h1 className={call.tone}>{call.sentence}</h1>
         <p className="sub">{call.sub}</p>
+      </section>
+
+      <section className={`frame verdict ${verdict ? VERDICT_FRAME[verdict.tone] : ""}`}>
+        <div className="bar">
+          <span>Mine or wait</span>
+          <span>{market?.usdPerHour ? `${RIG.name} at $${market.usdPerHour.toFixed(3)}/hr` : RIG.name}</span>
+        </div>
+        <div className="inner">
+          {verdict ? (
+            <>
+              <p className={`vline ${verdict.tone}`}>{verdict.line}</p>
+              <div className="vgrid">
+                <div><span>Hashes per cat</span><b className="mono">2^{verdict.bits.toFixed(1)}</b></div>
+                <div><span>GPU time</span><b className="mono">{verdict.hoursPerCat.toFixed(1)} h</b></div>
+                <div><span>GPU cost</span><b className="mono">{f(verdict.gpuEth)} ETH</b></div>
+                <div><span>Mint</span><b className="mono">{f(chain?.mintPrice)} ETH</b></div>
+                <div><span>Total cost</span><b className="mono">{f(verdict.cost)} ETH</b></div>
+                <div><span>Burn, after {((chain?.hookFeeBps ?? 0) / 100).toFixed(1)}% swap fee</span><b className="mono">{f(verdict.burnNet)} ETH</b></div>
+                <div><span>Sell, after {market?.saleFeePct}% fees</span><b className="mono">{f(verdict.saleNet)} ETH</b></div>
+                <div><span>Margin</span><b className={`mono ${verdict.margin >= 0 ? "good" : "bad"}`}>{verdict.margin >= 0 ? "+" : ""}{Math.round(verdict.margin * 100)}%</b></div>
+              </div>
+              <p className="vnote">
+                {verdict.sub} Speed is hashcat&apos;s {RIG.ghs} GH/s on a stock {RIG.name}. No GPU miner for this contract exists yet, so treat this as the best case.
+              </p>
+            </>
+          ) : (
+            <p className="dim">Reading the target, the pool and GPU prices…</p>
+          )}
+        </div>
       </section>
 
       <div className="stats">

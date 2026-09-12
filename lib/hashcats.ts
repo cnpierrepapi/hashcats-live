@@ -3,6 +3,7 @@ import { defineChain, parseAbi, parseAbiItem } from "viem";
 export const COLLECTION = "0xCA75DF55Cc9C476DB27a7375D1fc8E794cf80721" as const;
 export const HASH_TOKEN = "0xCA75082b85bb7Bec8325d513F615b16BDa260020" as const;
 export const MULTICALL3 = "0xcA11bde05977b3631167028862bE2a173976CA11" as const;
+export const HOOK = "0xca757986e932bc55776492cca0b413e9b3d02acc" as const;
 export const HTTP_RPC = "https://rpc.mainnet.chain.robinhood.com";
 export const WSS_RPC = "wss://robinhood.drpc.org";
 export const SLUG = "hash-cats";
@@ -28,6 +29,9 @@ export const abi = parseAbi([
   "function rentFloor(uint256 id) view returns (uint256)",
   "function burnReward(uint256 id) view returns (uint256)",
 ]);
+
+// The Uniswap v4 hook's swap fee, taken on the ether side of every $HASH trade.
+export const hookAbi = parseAbi(["function currentFee() view returns (uint16)"]);
 
 export const transferEvent = parseAbiItem(
   "event Transfer(address indexed from, address indexed to, uint256 indexed tokenId)",

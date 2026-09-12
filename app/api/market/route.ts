@@ -59,6 +59,33 @@ async function hashPrice() {
   return { hashEth: native, ethUsd: Number(best.priceUsd) / native };
 }
 
+/** Cheapest single RTX 5090 on vast.ai from a host with at least 98% reliability. */
+async function gpuPrice() {
+  const q = JSON.stringify({
+    gpu_name: { eq: "RTX 5090" },
+    num_gpus: { eq: 1 },
+    rentable: { eq: true },
+    reliability2: { gte: 0.98 },
+    type: "on-demand",
+    order: [["dph_total", "asc"]],
+    limit: 5,
+  });
+  const r = await fetch(`https://console.vast.ai/api/v0/bundles/?q=${encodeURIComponent(q)}`, { cache: "no-store" });
+  const offers: any[] = (await r.json()).offers ?? [];
+  if (!offers.length) throw new Error("no reliable 5090 on vast.ai");
+  return Number(offers[0].dph_total);
+}
+
+// OpenSea + creator fee on a sale. It barely ever changes, so one read per instance per 6h.
+let feeCache: { pct: number; at: number } | null = null;
+async function saleFees(key: string) {
+  if (feeCache && Date.now() - feeCache.at < 6 * 3600_000) return feeCache.pct;
+  const d = await opensea(`/collections/${SLUG}`, key);
+  const pct = (d.fees ?? []).reduce((s: number, fee: any) => s + Number(fee.fee), 0);
+  feeCache = { pct, at: Date.now() };
+  return pct;
+}
+
 const read = (functionName: "ownerOf" | "claimable" | "rentFloor" | "burnReward", id: number) =>
   ({ address: COLLECTION, abi, functionName, args: [BigInt(id)] }) as const;
 
@@ -95,15 +122,25 @@ async function valueListings(asks: Map<number, number>) {
 export async function GET() {
   const key = process.env.OPENSEA_API_KEY;
   const status: Record<string, string> = {};
-  const [px, asks, recent] = await Promise.allSettled([
+  const noKey = () => Promise.reject(new Error("no OPENSEA_API_KEY"));
+  const [px, asks, recent, gpu, fees] = await Promise.allSettled([
     hashPrice(),
-    key ? listings(key) : Promise.reject(new Error("no OPENSEA_API_KEY")),
-    key ? sales(key) : Promise.reject(new Error("no OPENSEA_API_KEY")),
+    key ? listings(key) : noKey(),
+    key ? sales(key) : noKey(),
+    gpuPrice(),
+    key ? saleFees(key) : noKey(),
   ]);
 
-  const body: Market = { hashEth: null, ethUsd: null, total: 0, rentStep: 0, listings: [], sales: [], status, fetchedAt: Date.now() / 1000 };
+  const body: Market = {
+    hashEth: null, ethUsd: null, total: 0, rentStep: 0, listings: [], sales: [], status, fetchedAt: Date.now() / 1000,
+    usdPerHour: null, saleFeePct: 6, // 1% OpenSea + 5% creator, as read on 12 Sep; used only if the read fails
+  };
   if (px.status === "fulfilled") Object.assign(body, px.value);
   else status.dex = px.reason.message;
+  if (gpu.status === "fulfilled") body.usdPerHour = gpu.value;
+  else status.gpu = gpu.reason.message;
+  if (fees.status === "fulfilled") body.saleFeePct = fees.value;
+  else status.fees = fees.reason.message;
   if (recent.status === "fulfilled") body.sales = recent.value;
   else status.sales = recent.reason.message;
 

@@ -28,6 +28,20 @@ Same palette, same three Google fonts (Jersey 10, DotGothic16, VT323), same 3px 
 
 The header says "unofficial tracker" and so does the footer. Borrowing their look is fine for a fan tool, passing as their site isn't.
 
+## mine or wait
+
+The panel prices one RTX 5090 against today's numbers and says mine, close call, or wait.
+
+Cost per cat is 2^256 divided by the current target. That's the expected number of hashes before one lands under it. My first estimate averaged 2^(leading zeros) over the hashes that actually won, and it overshot by 2 to 4 times. A few lucky hashes with extra zeros drag that average up, and in theory it never settles. Straight from the target is the right number.
+
+The target swings a couple of bits with the mint streak, so the page takes the median of the last 12 reads, one every 5 seconds.
+
+Two exits. Burning pays 1000 $HASH less the hook's swap fee, read live from the hook (2.5% on 12 Sep). Selling pays the OpenSea floor less their fees, read from the collections API (1% OpenSea plus 5% creator). The page takes whichever is better.
+
+GPU price is the cheapest single 5090 on vast.ai from a host with 98%+ reliability, pulled live. Speed is hashcat's stock 5090 figure, 6.40 GH/s. Nobody has written a CUDA miner for this contract yet, so the verdict is the ceiling, not what you'd see on day one.
+
+It wants a 30% cushion before it says mine. $HASH dropped 15% in one hour while this was being built.
+
 ## the OpenSea key expires
 
 The free agent key from `POST /api/v2/auth/keys` expires after a week. When the market column goes quiet and the status says `OpenSea 401`, mint a new key and update `OPENSEA_API_KEY` in Vercel.

@@ -27,7 +27,7 @@ Or skip all that: make a proper key once at opensea.io/settings/developer and it
 
 Every data source is free with no promises attached.
 
-- **drpc websocket** (`WSS_RPC` in `lib/hashcats.ts`) carries the live feed, and the pace panel's reads at past blocks. If the light stays off, point it at another Robinhood Chain websocket. The official RPC has no websocket and no archive state, so pace would go blank there.
+- **drpc websocket** (`WSS_RPC` in `lib/hashcats.ts`) carries the live feed. If the light stays off, point it at another Robinhood Chain websocket. The official RPC has no websocket.
 - **Robinhood's public RPC** rate-limits chatty clients. The server makes two multicalls per refresh, so it stays under.
 - **DexScreener** gives the $HASH price. The "$HASH chart" link is pinned to one pair, and it goes stale if liquidity moves pools.
 
@@ -38,7 +38,8 @@ Every data source is free with no promises attached.
 ## numbers that go stale
 
 - The listing reader stops at 600 listings (6 pages). There were about 300 on 12 Sep and 4 on 14 Sep.
-- The pace panel calls it "stalled" when the last 6 hours ran at under a fifth of the day's hourly rate. That's a feel number, change it in `app/page.tsx` if it cries wolf.
+- `EGGS.due` in `lib/hashcats.ts` is the 48 hour mark from the team's 13 Sep post. Once breeding ships, swap the countdown for the real contract reads.
+- One run spends about 7 OpenSea reads now (up to 5 listing pages, sales, stats). At one run per 2 minutes per region that's well inside 600 an hour.
 
 ## dependencies
 

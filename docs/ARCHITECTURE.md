@@ -6,11 +6,9 @@ Two halves, split by how fast the data moves and who's allowed to hold a key.
 
 Opens a websocket to `wss://robinhood.drpc.org` with viem and subscribes to `Transfer` logs on the collection. A transfer from zero is a mint, a transfer to zero is a burn, anything else is a transfer. Each one lands in the moves feed as it happens and triggers a fresh read of the chain tiles.
 
-The tiles (minted, burned, epoch, mint price, last mint) and the hook's buyback numbers (`queue`, `buybackSpent`, `buybackBurned`, `currentFee`) come from one multicall over the same socket. It also re-reads every 5 seconds in case a log gets dropped.
+The collection numbers (minted, burned, epoch, mint price) and the hook's (`queue`, `capPerBlock`, `buybackSpent`, `buybackBurned`, `currentFee`) come from one multicall over the same socket. It also re-reads every 5 seconds in case a log gets dropped.
 
-Pace comes from the same socket too. Every 5 minutes it reads `totalMinted` and `burnedCount` at the blocks from 1, 6 and 24 hours ago and subtracts. drpc keeps archive state, Robinhood's public RPC doesn't.
-
-The headline, the mint gap and the listing table are computed here, from the market payload plus the live chain reads. That's why the slider feels instant: moving it re-values every listing locally without calling the server.
+The $HASH band and the listing table are computed here, from the market payload plus the live chain reads. That's why the slider feels instant: moving it re-values every listing locally without calling the server.
 
 The browser asks `/api/market` once a minute, and not at all while the tab is hidden. It catches up when the tab comes back.
 
@@ -20,7 +18,7 @@ One route. It does four things at once:
 
 1. $HASH price from DexScreener, using the deepest pool
 2. every ETH/WETH listing on OpenSea for `hash-cats`, keeping the lowest ask per cat
-3. the last 40 OpenSea sales
+3. the last 40 OpenSea sales, plus the collection stats (24h and 7 day volume, sales, holders, floor)
 4. `ownerOf`, `claimable`, `rentFloor` and `burnReward` for every listed cat, packed into one Multicall3 call against the public RPC
 
 It returns raw numbers, not verdicts. The response carries `Cache-Control: s-maxage=120, stale-while-revalidate=600`, so Vercel's CDN answers repeat visitors and the function runs about once every two minutes per region. Every upstream call gives up after 6 seconds so a slow OpenSea can't hold the function open.

@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { createPublicClient, webSocket } from "viem";
 import { abi, addrLink, catLink, COLLECTION, EGGS, HOOK, hookAbi, LINKS, robinhood, transferEvent, txLink, WSS_RPC } from "@/lib/hashcats";
-import { mintGap, PACE_HOURS, strategy, value, type Chain, type Market, type Pace } from "@/lib/strategy";
+import { band, value, type Chain, type Market } from "@/lib/strategy";
 
 type Move = { key: string; t: number; kind: "mint" | "burn" | "transfer" | "sale"; id: number; who?: string | null; price?: number; sym?: string; tx?: string | null };
 
@@ -11,7 +11,6 @@ const ZERO = "0x0000000000000000000000000000000000000000";
 const BUTTON_FRAME = ["work", "chain", "mine", "rare", ""] as const;
 // /api/market is cached for 2 minutes at the CDN, so polling faster only buys function runs.
 const MARKET_POLL = 60_000;
-const PACE_POLL = 5 * 60_000;
 const short = (a?: string | null) => (a ? `${a.slice(0, 6)}…${a.slice(-4)}` : "");
 const ago = (t: number, now: number) => {
   const s = Math.max(0, Math.round(now - t));
@@ -22,7 +21,6 @@ const pct = (m: number) => `${m >= 0 ? "+" : ""}${Math.round(m * 100)}%`;
 export default function Dashboard() {
   const [chain, setChain] = useState<Chain | null>(null);
   const [market, setMarket] = useState<Market | null>(null);
-  const [pace, setPace] = useState<Pace | null>(null);
   const [moves, setMoves] = useState<Move[]>([]);
   // Null until someone drags it: with minting stalled, the honest default is today's count.
   const [final, setFinal] = useState<number | null>(null);
@@ -43,26 +41,18 @@ export default function Dashboard() {
     const client = createPublicClient({ chain: robinhood, transport: webSocket(WSS_RPC, { reconnect: true }) });
     const c = (functionName: "totalMinted" | "currentEpoch" | "mintPrice" | "lastMintTime" | "burnedCount") =>
       ({ address: COLLECTION, abi, functionName }) as const;
-    const h = (functionName: "currentFee" | "queue" | "buybackSpent" | "buybackBurned") => ({ address: HOOK, abi: hookAbi, functionName }) as const;
-    let epochBounds: { epoch: number; start: number; size: number } | null = null;
+    const h = (functionName: "currentFee" | "queue" | "buybackSpent" | "buybackBurned" | "capPerBlock") =>
+      ({ address: HOOK, abi: hookAbi, functionName }) as const;
 
     const refresh = async () => {
       try {
-        const [total, epoch, price, last, burned, hookFee, queue, spent, bought] = await client.multicall({
+        const [total, epoch, price, last, burned, hookFee, queue, spent, bought, cap] = await client.multicall({
           allowFailure: false,
-          contracts: [c("totalMinted"), c("currentEpoch"), c("mintPrice"), c("lastMintTime"), c("burnedCount"), h("currentFee"), h("queue"), h("buybackSpent"), h("buybackBurned")],
+          contracts: [
+            c("totalMinted"), c("currentEpoch"), c("mintPrice"), c("lastMintTime"), c("burnedCount"),
+            h("currentFee"), h("queue"), h("buybackSpent"), h("buybackBurned"), h("capPerBlock"),
+          ],
         });
-        // Epoch bounds only change when the epoch does.
-        if (epochBounds?.epoch !== Number(epoch)) {
-          const [start, size] = await client.multicall({
-            allowFailure: false,
-            contracts: [
-              { address: COLLECTION, abi, functionName: "epochStart", args: [epoch] },
-              { address: COLLECTION, abi, functionName: "epochSize", args: [epoch] },
-            ],
-          });
-          epochBounds = { epoch: Number(epoch), start: Number(start), size: Number(size) };
-        }
         setChain({
           total: Number(total),
           epoch: Number(epoch),
@@ -70,45 +60,17 @@ export default function Dashboard() {
           lastMint: Number(last),
           burned: Number(burned),
           hookFeeBps: Number(hookFee),
-          epochStart: epochBounds.start,
-          epochSize: epochBounds.size,
           buybackQueue: Number(queue) / 1e18,
           buybackSpent: Number(spent) / 1e18,
           buybackBurned: Number(bought) / 1e18,
+          buybackCap: Number(cap) / 1e18,
         });
         setLastOk(Date.now() / 1000);
       } catch {}
     };
 
-    // Mint pace: the same two counters read at blocks 1, 6 and 24 hours back. drpc keeps archive state.
-    const loadPace = async () => {
-      try {
-        const head = await client.getBlock();
-        const back = await client.getBlock({ blockNumber: head.number - 100_000n });
-        const perSec = 100_000 / Number(head.timestamp - back.timestamp);
-        const reads = await Promise.all(
-          PACE_HOURS.map((hrs) =>
-            client.multicall({
-              allowFailure: false,
-              blockNumber: head.number - BigInt(Math.round(hrs * 3600 * perSec)),
-              contracts: [c("totalMinted"), c("burnedCount")],
-            }),
-          ),
-        );
-        const minted: Record<number, number> = {};
-        const burned: Record<number, number> = {};
-        PACE_HOURS.forEach((hrs, i) => {
-          minted[hrs] = Number(reads[i][0]);
-          burned[hrs] = Number(reads[i][1]);
-        });
-        setPace({ at: Date.now() / 1000, minted, burned });
-      } catch {}
-    };
-
     refresh();
-    loadPace();
     const timer = setInterval(refresh, 5000);
-    const paceTimer = setInterval(loadPace, PACE_POLL);
     const unwatch = client.watchEvent({
       address: COLLECTION,
       event: transferEvent,
@@ -133,12 +95,11 @@ export default function Dashboard() {
     });
     return () => {
       clearInterval(timer);
-      clearInterval(paceTimer);
       unwatch();
     };
   }, []);
 
-  // Market: OpenSea listings and sales plus the $HASH price. This is the only thing that runs a
+  // Market: OpenSea listings, sales and stats plus the $HASH price. This is the only thing that runs a
   // Vercel function, so a tab in the background stops asking and catches up when it comes back.
   useEffect(() => {
     let lastLoad = 0;
@@ -176,30 +137,16 @@ export default function Dashboard() {
     return market.listings.map((l) => value(l, market.rentStep, market.hashEth!, total, ends)).sort((a, b) => b.x - a.x);
   }, [market, total, ends]);
 
-  const floor = rows.reduce<(typeof rows)[number] | null>((m, r) => (!m || r.ask < m.ask ? r : m), null);
-  const gap = chain && market?.hashEth ? mintGap(chain, market.hashEth, floor?.ask ?? null, market.saleFeePct) : null;
-  const call = strategy(rows, gap, market?.sales ?? []);
   const f = (n?: number | null, d = 4) => (n == null ? "–" : n.toFixed(d));
-
-  const since = (hrs: number) => (pace && chain ? chain.total - pace.minted[hrs] : null);
-  const burnedSince = (hrs: number) => (pace && chain ? chain.burned - pace.burned[hrs] : null);
-  const perDay = since(24);
-  const inEpoch = chain ? chain.total - chain.epochStart + 1 : 0;
-  const epochLeft = chain ? chain.epochSize - inEpoch : 0;
-  // Stalled means the last 6 hours ran at under a fifth of the day's hourly rate.
-  const stalled = perDay != null && since(6)! / 6 < perDay / 24 / 5;
-  const paceLine =
-    perDay == null
-      ? null
-      : stalled
-        ? `Stalled: ${since(6)} mints in 6 hours, after ${perDay.toLocaleString()} in the last day.`
-        : `${since(1)} mints in the last hour, ${perDay.toLocaleString()} in the last day.`;
-  const recentRate = since(6) != null ? since(6)! / 6 : null; // per hour
-  const eta = recentRate && recentRate > 0 ? epochLeft / recentRate / 24 : null; // days
-
-  // Breeding takes two cats, so the entry ticket is the two cheapest listings.
   const byAsk = [...rows].sort((a, b) => a.ask - b.ask);
+  const floor = byAsk[0] ?? null;
+  const osFloor = market?.stats?.floor ?? floor?.ask ?? null;
+  // Breeding takes two cats, so the entry ticket is the two cheapest listings.
   const pair = byAsk.length >= 2 ? { ask: byAsk[0].ask + byAsk[1].ask, ids: [byAsk[0].id, byAsk[1].id] } : null;
+  const b = chain && market?.hashEth ? band(chain, market.hashEth, osFloor) : null;
+  const st = market?.stats ?? null;
+  const usd = (eth: number) => (market?.ethUsd ? `$${Math.round(eth * market.ethUsd).toLocaleString()}` : "");
+
   const dueIn = EGGS.due - now;
   const dueLine =
     dueIn > 0
@@ -216,7 +163,7 @@ export default function Dashboard() {
         </div>
         <span className="chip frame mono">
           <i className={`dot ${live ? "on" : ""}`} />
-          <span style={{ color: "var(--chain)" }}>{chain ? chain.total.toLocaleString() : "–"}</span> minted
+          <span style={{ color: "var(--chain)" }}>{chain ? (chain.total - chain.burned).toLocaleString() : "–"}</span> cats alive
           <span className="sep" />
           {market?.status.opensea ?? "loading market"}
         </span>
@@ -227,7 +174,7 @@ export default function Dashboard() {
         <h1 className="eggs">Two cats in, one egg out.</h1>
         <p className="sub">
           Hashcats teased breeding on 12 Sep. The first update is due by about 15 Sep, 22:00 UTC, and the team says to
-          have cats and $HASH on hand when it lands.
+          have cats and $HASH on hand when it lands. They also said $HASH is &quot;about to have a reason to be held.&quot;
         </p>
       </section>
 
@@ -236,69 +183,67 @@ export default function Dashboard() {
         <div className="inner">
           <p className="vline good">{dueLine}</p>
           <div className="vgrid">
-            <div>
-              <span>Cheapest pair</span>
-              <b className="mono">{pair ? `${f(pair.ask)} ETH` : "–"}</b>
-            </div>
+            <div><span>Cheapest pair</span><b className="mono">{pair ? `${f(pair.ask)} ETH` : "–"}</b></div>
             <div><span>$HASH now</span><b className="mono">{market?.hashEth ? `${f(market.hashEth, 7)} ETH` : "–"}</b></div>
             <div><span>Cats alive</span><b className="mono">{chain ? (chain.total - chain.burned).toLocaleString() : "–"}</b></div>
             <div><span>Due by</span><b className="mono">15 Sep 22:00 UTC</b></div>
           </div>
           <p className="vnote">
             All anyone&apos;s seen is the <a href={EGGS.teaser} target="_blank">12 Sep teaser</a>: Cat A and Cat B go in, an egg comes out.
-            No price, no timer, no contract yet. {pair && <>The cheapest pair right now is <a href={catLink(pair.ids[0])} target="_blank">#{pair.ids[0]}</a> and <a href={catLink(pair.ids[1])} target="_blank">#{pair.ids[1]}</a>. </>}
-            This panel gets real numbers once the contract ships. The <a href={EGGS.update} target="_blank">13 Sep post</a> has the timing.
+            No price, no timer, no contract yet. The owner wallet hasn&apos;t deployed anything new either.{" "}
+            {pair && <>The cheapest pair right now is <a href={catLink(pair.ids[0])} target="_blank">#{pair.ids[0]}</a> and <a href={catLink(pair.ids[1])} target="_blank">#{pair.ids[1]}</a>. </>}
+            The <a href={EGGS.update} target="_blank">13 Sep post</a> has the timing.
           </p>
         </div>
       </section>
 
       <div className="panels">
-      <section className={`frame verdict ${gap ? (gap.gap >= 0 ? "work" : "alarm") : ""}`}>
-        <div className="bar">
-          <span>Mint gap</span>
-          <span>per new cat</span>
-        </div>
-        <div className="inner">
-          {gap ? (
-            <>
-              <p className={`vline ${gap.gap >= 0 ? "good" : "bad"}`}>
-                {gap.gap >= 0 ? `Up ${pct(gap.gap)} on every new cat.` : `Down ${Math.round(-gap.gap * 100)}% on every new cat.`}
-              </p>
-              <div className="vgrid">
-                <div><span>Mint</span><b className="mono">{f(gap.mint)} ETH</b></div>
-                <div><span>Burn, after {((chain?.hookFeeBps ?? 0) / 100).toFixed(1)}% swap fee</span><b className="mono">{f(gap.burnNet)} ETH</b></div>
-                <div><span>Sell at floor, after {market?.saleFeePct}% fees</span><b className="mono">{f(gap.saleNet)} ETH</b></div>
-                <div><span>Gap</span><b className={`mono ${gap.gap >= 0 ? "good" : "bad"}`}>{pct(gap.gap)}</b></div>
-                <div><span>$HASH now</span><b className="mono">{f(market?.hashEth, 7)} ETH</b></div>
-                <div><span>$HASH break-even</span><b className="mono">{f(gap.breakeven, 7)} ETH</b></div>
-                <div><span>Move needed</span><b className={`mono ${gap.hashMove <= 0 ? "good" : "bad"}`}>{pct(gap.hashMove)}</b></div>
-              </div>
-              <p className="vnote">{call.sub}</p>
-            </>
-          ) : (
-            <p className="dim">Reading the mint price, the pool and the floor…</p>
-          )}
-        </div>
-      </section>
         <section className="frame chain verdict">
-          <div className="bar"><span>Pace</span><span>{chain ? `epoch ${chain.epoch}` : ""}</span></div>
+          <div className="bar"><span>$HASH band</span><span>set by the contract</span></div>
           <div className="inner">
-            {paceLine ? <p className={`vline ${stalled ? "bad" : "calm"}`}>{paceLine}</p> : <p className="dim">Reading past blocks…</p>}
-            <div className="vgrid">
-              <div><span>Mints, last hour</span><b className="mono">{since(1) ?? "–"}</b></div>
-              <div><span>Mints, 6 hours</span><b className="mono">{since(6) ?? "–"}</b></div>
-              <div><span>Mints, 24 hours</span><b className="mono">{perDay?.toLocaleString() ?? "–"}</b></div>
-              <div><span>Burns, 24 hours</span><b className="mono">{burnedSince(24)?.toLocaleString() ?? "–"}</b></div>
-              <div><span>Last mint</span><b className="mono">{chain ? `${ago(chain.lastMint, now)} ago` : "–"}</b></div>
-              <div><span>Epoch {chain?.epoch} filled</span><b className="mono">{chain ? `${inEpoch.toLocaleString()} / ${chain.epochSize.toLocaleString()}` : "–"}</b></div>
-            </div>
-            <p className="vnote">
-              {chain && pace
-                ? eta != null
-                  ? `At the last 6 hours' pace the epoch fills in about ${eta < 2 ? `${Math.round(eta * 24)} hours` : `${Math.round(eta)} days`}.`
-                  : "No mints in the last 6 hours, so the epoch isn't filling at all."
-                : ""}
-            </p>
+            {b ? (
+              <>
+                <p className="vline calm">$HASH is at {Math.round(b.pct * 100)}% of its ceiling.</p>
+                <div className="vgrid">
+                  <div><span>$HASH now</span><b className="mono">{f(market?.hashEth, 7)}</b></div>
+                  <div><span>Ceiling</span><b className="mono">{f(b.ceiling, 7)}</b></div>
+                  <div><span>Room to ceiling</span><b className="mono">{pct(b.room)}</b></div>
+                  <div><span>A cat burns for</span><b className="mono">{f(b.burnNet)} ETH</b></div>
+                  <div><span>OpenSea floor</span><b className="mono">{f(osFloor)} ETH</b></div>
+                  <div><span>Floor over burn</span><b className={`mono ${b.premium != null && b.premium > 0 ? "good" : "bad"}`}>{b.premium != null ? pct(b.premium) : "–"}</b></div>
+                </div>
+                <p className="vnote">
+                  The floor: an epoch {chain?.epoch} cat burns for exactly 1,000 $HASH ({f(b.burnEth)} ETH at spot, {f(b.burnNet)} after the{" "}
+                  {((chain?.hookFeeBps ?? 0) / 100).toFixed(1)}% swap fee). The ceiling: a cat mints for {f(chain?.mintPrice)} ETH, so if 1,000 $HASH
+                  were worth more than that, people would mint and burn until it wasn&apos;t.
+                </p>
+              </>
+            ) : (
+              <p className="dim">Reading the pool and the contract…</p>
+            )}
+          </div>
+        </section>
+
+        <section className="frame rare verdict">
+          <div className="bar"><span>Market</span><span>OpenSea</span></div>
+          <div className="inner">
+            {st ? (
+              <>
+                <p className="vline calm">{Math.round(st.vol24).toLocaleString()} ETH traded in the last day.</p>
+                <div className="vgrid">
+                  <div><span>Volume, 24h</span><b className="mono">{Math.round(st.vol24).toLocaleString()} ETH</b></div>
+                  <div><span>Sales, 24h</span><b className="mono">{st.sales24.toLocaleString()}</b></div>
+                  <div><span>Average sale</span><b className="mono">{st.sales24 ? f(st.vol24 / st.sales24) : "–"} ETH</b></div>
+                  <div><span>Volume, 7 days</span><b className="mono">{Math.round(st.vol7).toLocaleString()} ETH</b></div>
+                  <div><span>Holders</span><b className="mono">{st.owners.toLocaleString()}</b></div>
+                </div>
+                <p className="vnote">
+                  That&apos;s about {usd(st.vol24)} in a day. The team says it&apos;s now #1 on Robinhood Chain by 7 day volume.
+                </p>
+              </>
+            ) : (
+              <p className="dim">{market ? `No stats: ${market.status.stats ?? "OpenSea didn't answer"}` : "Reading OpenSea…"}</p>
+            )}
           </div>
         </section>
 
@@ -310,13 +255,13 @@ export default function Dashboard() {
                 <p className="vline calm">{f(chain.buybackQueue, 2)} ETH waiting to buy $HASH.</p>
                 <div className="vgrid">
                   <div><span>Queued</span><b className="mono">{f(chain.buybackQueue, 2)} ETH</b></div>
+                  <div><span>Cap per block</span><b className="mono">{f(chain.buybackCap, 2)} ETH</b></div>
                   <div><span>Spent so far</span><b className="mono">{f(chain.buybackSpent, 1)} ETH</b></div>
                   <div><span>$HASH burned</span><b className="mono">{(chain.buybackBurned / 1e6).toFixed(2)}M</b></div>
-                  <div><span>Cats alive</span><b className="mono">{(chain.total - chain.burned).toLocaleString()}</b></div>
                 </div>
                 <p className="vnote">
-                  Mints fill the queue and the hook spends it on $HASH, which props up what a burn pays. No mints means nothing new
-                  going in, so the queue is the buffer.
+                  The hook spends the queue on $HASH and burns it, a slice per block. On 13 Sep the team raised the cap to 0.05 ETH, then set it
+                  back to 0.04 about ninety minutes later.
                 </p>
               </>
             ) : (
@@ -329,12 +274,12 @@ export default function Dashboard() {
       <div className="stats">
         {[
           ["Cats alive", chain ? (chain.total - chain.burned).toLocaleString() : "–", ""],
-          ["Minted / burned", chain ? `${chain.total} / ${chain.burned}` : "–", ""],
-          ["Mint price", chain ? `${f(chain.mintPrice)} ETH` : "–", "work"],
+          ["Holders", st ? st.owners.toLocaleString() : "–", ""],
           ["$HASH", market?.hashEth ? `$${(market.hashEth * (market.ethUsd ?? 0)).toFixed(3)}` : "–", "chain"],
-          ["Burn pays", market?.hashEth ? `${f(market.hashEth * 1000)} ETH` : "–", "mine"],
+          ["Of ceiling", b ? `${Math.round(b.pct * 100)}%` : "–", "chain"],
+          ["Burn pays", b ? `${f(b.burnNet)} ETH` : "–", "mine"],
           ["Floor", floor ? `${f(floor.ask)} ETH` : "–", "rare"],
-          ["Mints / 24h", perDay != null ? perDay.toLocaleString() : "–", ""],
+          ["Volume, 24h", st ? `${Math.round(st.vol24)} ETH` : "–", "work"],
         ].map(([label, val, tone]) => (
           <div key={label} className={`stat frame ${tone}`}>
             <span>{label}</span>
@@ -354,7 +299,7 @@ export default function Dashboard() {
           <div className="bar"><span>Listings</span><span>{rows.length} for ETH</span></div>
           <div className="inner">
             <label className="final">
-              Collection ends at <b className="mono">{ends.toLocaleString()}</b> cats{final == null ? " (today's count, since minting has stalled)" : ""}
+              Collection ends at <b className="mono">{ends.toLocaleString()}</b> cats{final == null ? " (today's count)" : ""}
               <input type="range" min={2000} max={20000} step={100} value={ends} onChange={(e) => setFinal(+e.target.value)} />
             </label>
             <div className="scroll">
@@ -403,9 +348,9 @@ export default function Dashboard() {
       </div>
 
       <footer>
-        The mint gap compares a new cat&apos;s cost with the better of burning it (1000 $HASH at spot, less the swap fee) or selling it at the floor
-        (less OpenSea and creator fees). Listings are valued the old way: rent owed plus rent from future mints up to the count you set, or the burn
-        reward at spot. Unofficial, not made by the Hashcats team. Not financial advice.
+        The band comes straight from the contract: the burn reward sets the floor, the mint price over 1,000 sets the $HASH ceiling.
+        Listings are valued as the better of two exits, rent (owed now plus future mints up to the count you set) or the burn reward at spot.
+        Unofficial, not made by the Hashcats team. Not financial advice.
       </footer>
     </main>
   );

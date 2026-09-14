@@ -20,7 +20,7 @@ The local scanner values all ~1,100 cats, which is about 4,400 subcalls and 16 s
 
 ## the server returns numbers, the browser decides
 
-The collection-size slider changes every hold value. If the server did the valuing, every slider move would need a round trip. Keeping `value()` and `strategy()` in `lib/strategy.ts` and running them client-side makes the slider instant and keeps the server cache useful.
+The collection-size slider changes every hold value. If the server did the valuing, every slider move would need a round trip. Keeping `value()` and `band()` in `lib/strategy.ts` and running them client-side makes the slider instant and keeps the server cache useful.
 
 ## 1.15x before a listing gets a mention
 
@@ -50,11 +50,17 @@ Minting stalled and the team moved on. On 12 Sep they posted a breeding teaser (
 
 There's no contract to read yet. So the Eggs panel only shows things that are true however breeding works: the two cheapest listings added up (you need two cats), the $HASH price, cats alive and a countdown to the 48 hour mark. No guessed costs. When the contract ships, read the ABI out of the hashcats.fun bundle like last time and give the panel real numbers.
 
-The mint gap still lives on, one panel in the row, with the break-even and the sales line as its note.
+## minting came off the page (14 Sep)
 
-## pace and buyback read from the browser
+A few hours later the mint gap and pace panels went too. Nobody's minting at 0.164 and the team has moved on, so tracking it was tracking the past.
 
-Both panels are plain contract reads, so they go over the drpc socket like everything else on the chain side and cost no function time. Pace is `totalMinted` and `burnedCount` now minus the same reads at blocks 1, 6 and 24 hours back. Buyback is the hook's `queue`, `buybackSpent` and `buybackBurned`, the same calls hashcats.fun makes.
+What replaced it is what the team talks about now. Their 13 Sep "two bounds" post: a cat can't be worth less than its 1,000 $HASH burn, and $HASH can't sustainably trade above the mint price over 1,000 (0.00016368 ETH). So the $HASH band panel shows where $HASH sits between those. Then a market panel off OpenSea's stats endpoint, because volume is what they keep posting about. And the buyback, which now also shows the per-block cap.
+
+The cap is read live. The team's post said 0.05 ETH, and the owner did set that on 13 Sep at 03:31 UTC, then set it back to 0.04 at 05:08. The chain wins over the post.
+
+## buyback read from the browser
+
+Plain contract reads, so they go over the drpc socket like everything else on the chain side and cost no function time. It's the hook's `queue`, `capPerBlock`, `buybackSpent` and `buybackBurned`, the same calls hashcats.fun makes.
 
 The listing slider now starts at today's count instead of 17,000. With minting stalled, rent from future mints is a guess, and the honest default is none.
 

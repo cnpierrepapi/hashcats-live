@@ -2,29 +2,27 @@
 
 A live tracker for [Hashcats](https://hashcats.fun), proof-of-work cats on Robinhood Chain.
 
-The top of the page is eggs now. On 12 Sep the team teased breeding: two cats go in, an egg comes out. They said the first update ships within 48 hours of 13 Sep and to keep cats and $HASH around. Nothing's on chain yet, so the Eggs panel sticks to what you'd need either way. The cheapest two cats on OpenSea, the $HASH price, a countdown.
+The top of the page is eggs. On 12 Sep the team teased breeding: two cats go in, an egg comes out. They said the first update ships within 48 hours of 13 Sep and to keep cats and $HASH around. Nothing's on chain yet, so the Eggs panel sticks to what you'd need either way. The cheapest two cats on OpenSea, the $HASH price, a countdown.
 
-Minting got pushed down the page. The mint price hit 0.164 ETH in epoch 10 while a fresh cat only burns or sells for about 0.11, so hardly anyone mints. It's still tracked, just not the headline.
+Minting isn't the story anymore. Epoch 10 costs 0.164 ETH and hardly anyone pays it, so it's off the page.
 
 ## what's on it
 
 Eggs, as above. It'll get real numbers when the contract lands.
 
-The mint gap. A new cat's cost against its better exit: burn it for 1000 $HASH (less the swap fee), or sell it at the OpenSea floor (less fees). Plus the $HASH price where the two meet.
+The $HASH band. The team pointed out two bounds that live in the contract. A cat burns for 1,000 $HASH, so that's its floor. And a cat mints for 0.16368 ETH, so $HASH can't sit above 0.00016368 for long, or people would mint and burn for free money. The panel shows where $HASH is between those, and how the OpenSea floor compares to the burn.
 
-Pace. Mints in the last hour, 6 hours and day, burns, and how full the epoch is. That's the difference between a slow day and a full stop.
+Market, from OpenSea's stats: volume and sales for the day and the week, plus holders.
 
-Buyback. What the hook has queued to buy $HASH, what it's spent, and how much $HASH it's burned. Mints fill the queue. No mints, nothing new goes in.
+Buyback. What the hook has queued to buy $HASH, how much it'll spend per block, what it's spent, and how much $HASH it's burned.
 
-Listings, valued the old way: rent owed plus rent from future mints up to a collection size you pick, or the burn reward at spot. The slider starts at today's count because nobody's minting.
-
-And a feed of every mint, burn, transfer and sale.
+Listings, valued as the better of rent or burn. And a feed of every mint, burn, transfer and sale.
 
 ## where the data comes from
 
 Everything on the chain side comes straight into your browser over the drpc websocket. No server, nothing billed.
 
-OpenSea listings, sales and the $HASH price come through `/api/market`. The CDN holds that for 2 minutes, and a tab in the background stops asking, so the function runs about once every two minutes however many people are watching.
+OpenSea listings, sales and stats plus the $HASH price come through `/api/market`. The CDN holds that for 2 minutes, and a tab in the background stops asking, so the function runs about once every two minutes however many people are watching.
 
 ## run it
 

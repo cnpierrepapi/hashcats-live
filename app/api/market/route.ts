@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { createPublicClient, http } from "viem";
 import { abi, COLLECTION, HASH_TOKEN, SLUG, robinhood } from "@/lib/hashcats";
-import type { Listing, Market, Sale } from "@/lib/strategy";
+import type { Listing, Market, Sale, Stats } from "@/lib/strategy";
 
 // Every run costs function time, so the CDN answers from cache for 2 minutes and serves the
 // stale copy for 10 more while one run refreshes it. Listings and sales don't move faster than that.
@@ -52,6 +52,18 @@ async function sales(key: string): Promise<Sale[]> {
     seller: e.seller ?? null,
     tx: e.transaction ?? null,
   }));
+}
+
+async function stats(key: string): Promise<Stats> {
+  const d = await opensea(`/collections/${SLUG}/stats`, key);
+  const iv = (name: string) => (d.intervals ?? []).find((i: any) => i.interval === name);
+  return {
+    vol24: Number(iv("one_day")?.volume ?? 0),
+    sales24: Number(iv("one_day")?.sales ?? 0),
+    vol7: Number(iv("seven_day")?.volume ?? 0),
+    owners: Number(d.total?.num_owners ?? 0),
+    floor: d.total?.floor_price ?? null,
+  };
 }
 
 async function hashPrice() {
@@ -109,17 +121,20 @@ export async function GET() {
   const key = process.env.OPENSEA_API_KEY;
   const status: Record<string, string> = {};
   const noKey = () => Promise.reject(new Error("no OPENSEA_API_KEY"));
-  const [px, asks, recent, fees] = await Promise.allSettled([
+  const [px, asks, recent, fees, st] = await Promise.allSettled([
     hashPrice(),
     key ? listings(key) : noKey(),
     key ? sales(key) : noKey(),
     key ? saleFees(key) : noKey(),
+    key ? stats(key) : noKey(),
   ]);
 
   const body: Market = {
-    hashEth: null, ethUsd: null, total: 0, rentStep: 0, listings: [], sales: [], status, fetchedAt: Date.now() / 1000,
+    hashEth: null, ethUsd: null, total: 0, rentStep: 0, listings: [], sales: [], stats: null, status, fetchedAt: Date.now() / 1000,
     saleFeePct: 6, // 1% OpenSea + 5% creator, as read on 12 Sep; used only if the read fails
   };
+  if (st.status === "fulfilled") body.stats = st.value;
+  else status.stats = st.reason.message;
   if (px.status === "fulfilled") Object.assign(body, px.value);
   else status.dex = px.reason.message;
   if (fees.status === "fulfilled") body.saleFeePct = fees.value;

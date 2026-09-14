@@ -28,8 +28,6 @@ export const abi = parseAbi([
   "function claimable(uint256 id) view returns (uint256)",
   "function rentFloor(uint256 id) view returns (uint256)",
   "function burnReward(uint256 id) view returns (uint256)",
-  "function epochStart(uint256 k) view returns (uint256)",
-  "function epochSize(uint256 k) view returns (uint256)",
 ]);
 
 // The Uniswap v4 hook: its swap fee on the ether side of every $HASH trade, and the buyback
@@ -39,6 +37,7 @@ export const hookAbi = parseAbi([
   "function queue() view returns (uint256)",
   "function buybackSpent() view returns (uint128)",
   "function buybackBurned() view returns (uint128)",
+  "function capPerBlock() view returns (uint256)",
 ]);
 
 export const transferEvent = parseAbiItem(

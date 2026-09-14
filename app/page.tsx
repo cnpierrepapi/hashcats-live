@@ -155,7 +155,7 @@ export default function Dashboard() {
     const onVisible = () => {
       if (!document.hidden && Date.now() - lastLoad > MARKET_POLL) load();
     };
-    load();
+    load(true);
     const timer = setInterval(load, MARKET_POLL);
     document.addEventListener("visibilitychange", onVisible);
     return () => {
@@ -186,10 +186,12 @@ export default function Dashboard() {
   const perDay = since(24);
   const inEpoch = chain ? chain.total - chain.epochStart + 1 : 0;
   const epochLeft = chain ? chain.epochSize - inEpoch : 0;
+  // Stalled means the last 6 hours ran at under a fifth of the day's hourly rate.
+  const stalled = perDay != null && since(6)! / 6 < perDay / 24 / 5;
   const paceLine =
     perDay == null
       ? null
-      : since(6)! <= 6 * 2
+      : stalled
         ? `Stalled: ${since(6)} mints in 6 hours, after ${perDay.toLocaleString()} in the last day.`
         : `${since(1)} mints in the last hour, ${perDay.toLocaleString()} in the last day.`;
   const recentRate = since(6) != null ? since(6)! / 6 : null; // per hour
@@ -252,7 +254,7 @@ export default function Dashboard() {
         <section className="frame chain verdict">
           <div className="bar"><span>Pace</span><span>{chain ? `epoch ${chain.epoch}` : ""}</span></div>
           <div className="inner">
-            {paceLine ? <p className={`vline ${since(6)! <= 12 ? "bad" : "calm"}`}>{paceLine}</p> : <p className="dim">Reading past blocks…</p>}
+            {paceLine ? <p className={`vline ${stalled ? "bad" : "calm"}`}>{paceLine}</p> : <p className="dim">Reading past blocks…</p>}
             <div className="vgrid">
               <div><span>Mints, last hour</span><b className="mono">{since(1) ?? "–"}</b></div>
               <div><span>Mints, 6 hours</span><b className="mono">{since(6) ?? "–"}</b></div>

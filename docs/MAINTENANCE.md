@@ -38,7 +38,7 @@ Every data source is free with no promises attached.
 ## numbers that go stale
 
 - The listing reader stops at 600 listings (6 pages). There were about 300 on 12 Sep and 4 on 14 Sep.
-- The pace panel calls it "stalled" at 12 mints or fewer in 6 hours. That's a feel number, change it if it cries wolf.
+- The pace panel calls it "stalled" when the last 6 hours ran at under a fifth of the day's hourly rate. That's a feel number, change it in `app/page.tsx` if it cries wolf.
 
 ## dependencies
 

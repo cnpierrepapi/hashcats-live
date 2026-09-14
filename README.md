@@ -1,10 +1,14 @@
 # hashcats live
 
-Is minting on [Hashcats](https://hashcats.fun) worth it right now, and if not, how far off is it? That's the sentence at the top of the page. It updates as mints, burns and sales land.
+A live tracker for [Hashcats](https://hashcats.fun), proof-of-work cats on Robinhood Chain.
 
-Hashcats are proof-of-work cats on Robinhood Chain. In September 2026 the mint price hit 0.164 ETH in epoch 10, while a fresh cat only burns or sells for about 0.115. Minting mostly stopped. So the page tracks the gap between those two numbers and the $HASH price that would close it.
+The top of the page is eggs now. On 12 Sep the team teased breeding: two cats go in, an egg comes out. They said the first update ships within 48 hours of 13 Sep and to keep cats and $HASH around. Nothing's on chain yet, so the Eggs panel sticks to what you'd need either way. The cheapest two cats on OpenSea, the $HASH price, a countdown.
+
+Minting got pushed down the page. The mint price hit 0.164 ETH in epoch 10 while a fresh cat only burns or sells for about 0.11, so hardly anyone mints. It's still tracked, just not the headline.
 
 ## what's on it
+
+Eggs, as above. It'll get real numbers when the contract lands.
 
 The mint gap. A new cat's cost against its better exit: burn it for 1000 $HASH (less the swap fee), or sell it at the OpenSea floor (less fees). Plus the $HASH price where the two meet.
 

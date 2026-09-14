@@ -44,6 +44,14 @@ The number worth watching is the break-even: mint price over (1000 times what's 
 
 If mining ever gets expensive again, cost per cat is 2^256 divided by the current target. Don't average 2^(leading zeros) over winning hashes. That overshot 2 to 4 times on 11 Sep.
 
+## eggs took the headline (14 Sep)
+
+Minting stalled and the team moved on. On 12 Sep they posted a breeding teaser (Cat A and Cat B slots feeding an Egg slot), and on 13 Sep they said the first update ships within 48 hours and to have cats and $HASH ready. That's where the attention is, so that's the top of the page.
+
+There's no contract to read yet. So the Eggs panel only shows things that are true however breeding works: the two cheapest listings added up (you need two cats), the $HASH price, cats alive and a countdown to the 48 hour mark. No guessed costs. When the contract ships, read the ABI out of the hashcats.fun bundle like last time and give the panel real numbers.
+
+The mint gap still lives on, one panel in the row, with the break-even and the sales line as its note.
+
 ## pace and buyback read from the browser
 
 Both panels are plain contract reads, so they go over the drpc socket like everything else on the chain side and cost no function time. Pace is `totalMinted` and `burnedCount` now minus the same reads at blocks 1, 6 and 24 hours back. Buyback is the hook's `queue`, `buybackSpent` and `buybackBurned`, the same calls hashcats.fun makes.

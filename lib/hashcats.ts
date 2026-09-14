@@ -53,6 +53,14 @@ export const LINKS = {
   Contract: `https://robinhoodchain.blockscout.com/address/${COLLECTION}`,
 };
 
-export const catLink = (id: number) => `https://opensea.io/item/robinhood/${COLLECTION.toLowerCase()}/${id}`;
+// Breeding, as teased on X. Nothing is on chain yet, so this is all the page knows.
+// The 13 Sep post said the first update ships "within 48 hours".
+export const EGGS = {
+  teaser: "https://x.com/hashcats_rh/status/2098872023543943354",
+  update: "https://x.com/hashcats_rh/status/2099257805387509791",
+  due: Date.parse("2026-09-15T22:03:57Z") / 1000,
+};
+
+export const catLink =(id: number) => `https://opensea.io/item/robinhood/${COLLECTION.toLowerCase()}/${id}`;
 export const txLink = (hash: string) => `https://robinhoodchain.blockscout.com/tx/${hash}`;
 export const addrLink = (a: string) => `https://robinhoodchain.blockscout.com/address/${a}`;

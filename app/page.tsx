@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import { createPublicClient, webSocket } from "viem";
-import { abi, addrLink, catLink, COLLECTION, HOOK, hookAbi, LINKS, robinhood, transferEvent, txLink, WSS_RPC } from "@/lib/hashcats";
+import { abi, addrLink, catLink, COLLECTION, EGGS, HOOK, hookAbi, LINKS, robinhood, transferEvent, txLink, WSS_RPC } from "@/lib/hashcats";
 import { mintGap, PACE_HOURS, strategy, value, type Chain, type Market, type Pace } from "@/lib/strategy";
 
 type Move = { key: string; t: number; kind: "mint" | "burn" | "transfer" | "sale"; id: number; who?: string | null; price?: number; sym?: string; tx?: string | null };
@@ -197,6 +197,15 @@ export default function Dashboard() {
   const recentRate = since(6) != null ? since(6)! / 6 : null; // per hour
   const eta = recentRate && recentRate > 0 ? epochLeft / recentRate / 24 : null; // days
 
+  // Breeding takes two cats, so the entry ticket is the two cheapest listings.
+  const byAsk = [...rows].sort((a, b) => a.ask - b.ask);
+  const pair = byAsk.length >= 2 ? { ask: byAsk[0].ask + byAsk[1].ask, ids: [byAsk[0].id, byAsk[1].id] } : null;
+  const dueIn = EGGS.due - now;
+  const dueLine =
+    dueIn > 0
+      ? `Update due in ${Math.floor(dueIn / 3600)}h ${Math.floor((dueIn % 3600) / 60)}m.`
+      : "The 48 hours are up. Watch @hashcats_rh.";
+
   return (
     <main>
       <header className="top">
@@ -214,11 +223,36 @@ export default function Dashboard() {
       </header>
 
       <section className="hero">
-        <p className="kicker">{live ? "Where minting stands" : "Connecting to the chain"}</p>
-        <h1 className={call.tone}>{call.sentence}</h1>
-        <p className="sub">{call.sub}</p>
+        <p className="kicker">Next up: eggs</p>
+        <h1 className="eggs">Two cats in, one egg out.</h1>
+        <p className="sub">
+          Hashcats teased breeding on 12 Sep. The first update is due by about 15 Sep, 22:00 UTC, and the team says to
+          have cats and $HASH on hand when it lands. {dueLine}
+        </p>
       </section>
 
+      <section className="frame work verdict">
+        <div className="bar"><span>Eggs</span><span>not on chain yet</span></div>
+        <div className="inner">
+          <p className="vline good">{dueLine}</p>
+          <div className="vgrid">
+            <div>
+              <span>Cheapest pair</span>
+              <b className="mono">{pair ? `${f(pair.ask)} ETH` : "–"}</b>
+            </div>
+            <div><span>$HASH now</span><b className="mono">{market?.hashEth ? `${f(market.hashEth, 7)} ETH` : "–"}</b></div>
+            <div><span>Cats alive</span><b className="mono">{chain ? (chain.total - chain.burned).toLocaleString() : "–"}</b></div>
+            <div><span>Due by</span><b className="mono">15 Sep 22:00 UTC</b></div>
+          </div>
+          <p className="vnote">
+            All anyone&apos;s seen is the <a href={EGGS.teaser} target="_blank">12 Sep teaser</a>: Cat A and Cat B go in, an egg comes out.
+            No price, no timer, no contract yet. {pair && <>The cheapest pair right now is <a href={catLink(pair.ids[0])} target="_blank">#{pair.ids[0]}</a> and <a href={catLink(pair.ids[1])} target="_blank">#{pair.ids[1]}</a>. </>}
+            This panel gets real numbers once the contract ships. The <a href={EGGS.update} target="_blank">13 Sep post</a> has the timing.
+          </p>
+        </div>
+      </section>
+
+      <div className="panels">
       <section className={`frame verdict ${gap ? (gap.gap >= 0 ? "work" : "alarm") : ""}`}>
         <div className="bar">
           <span>Mint gap</span>
@@ -239,18 +273,13 @@ export default function Dashboard() {
                 <div><span>$HASH break-even</span><b className="mono">{f(gap.breakeven, 7)} ETH</b></div>
                 <div><span>Move needed</span><b className={`mono ${gap.hashMove <= 0 ? "good" : "bad"}`}>{pct(gap.hashMove)}</b></div>
               </div>
-              <p className="vnote">
-                A cat burned in its own epoch pays the full 1000 $HASH, so that&apos;s the burn priced here. Hashing is close to free at
-                today&apos;s target, which leaves the mint price as the whole cost. When $HASH clears the break-even, minting pays again.
-              </p>
+              <p className="vnote">{call.sub}</p>
             </>
           ) : (
             <p className="dim">Reading the mint price, the pool and the floor…</p>
           )}
         </div>
       </section>
-
-      <div className="panels">
         <section className="frame chain verdict">
           <div className="bar"><span>Pace</span><span>{chain ? `epoch ${chain.epoch}` : ""}</span></div>
           <div className="inner">

@@ -96,8 +96,7 @@ main { max-width: 84rem; margin: 0 auto; padding-block: calc(var(--px) * 5) calc
 .hero { display: grid; grid-template-columns: minmax(0, 1fr); gap: 0; margin-bottom: calc(var(--px) * 8); }
 .hero .kicker { font-family: var(--f-display); text-transform: uppercase; letter-spacing: .12em; font-size: 20px; color: var(--text-2); margin: 0 0 6px; }
 .hero h1 { font-family: var(--f-display); font-weight: 400; text-transform: uppercase; font-size: clamp(38px, 6.4vw, 78px); line-height: .92; margin: 0 0 18px; letter-spacing: .01em; max-width: 22ch; }
-.hero h1.open { color: var(--work); }
-.hero h1.stalled { color: var(--alarm); }
+.hero h1.eggs { color: var(--work); }
 .hero p.sub { margin: 0; max-width: 62ch; color: var(--text-2); }
 
 /* stats */
@@ -142,9 +141,9 @@ tbody tr:hover { background: var(--panel-2); }
 
 /* mint gap, pace, buyback */
 .verdict { margin-bottom: calc(var(--px) * 8); }
-.panels { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 18px; align-items: start; }
+.panels { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 340px), 1fr)); gap: 18px; align-items: start; }
 .panels .verdict { margin-bottom: calc(var(--px) * 6); }
-@media (max-width: 900px) { .panels { grid-template-columns: 1fr; } }
+.panels .vline { font-size: clamp(20px, 2.2vw, 26px); }
 .vline { font-family: var(--f-display); text-transform: uppercase; font-size: clamp(24px, 3vw, 34px); line-height: 1; margin: 4px 0 18px; }
 .vline.good { color: var(--work); }
 .vline.bad { color: var(--alarm); }

@@ -6,7 +6,7 @@ import type { Listing, Market, Sale, Stats } from "@/lib/strategy";
 // Every run costs function time, so the CDN answers from cache for 2 minutes and serves the
 // stale copy for 10 more while one run refreshes it. Listings and sales don't move faster than that.
 export const dynamic = "force-dynamic";
-export const maxDuration = 15;
+export const maxDuration = 20;
 
 // A hung upstream shouldn't hold the function open. Each source gets 6s, then counts as failed.
 const TIMEOUT = 6000;
@@ -23,14 +23,25 @@ async function opensea(path: string, key: string) {
   return r.json();
 }
 
+// On 14 Sep three wallets were relisting the same three cats every 15 minutes, which put
+// about 700 orders in front of every real listing. So read deep, and only every 10 minutes
+// per instance. Sales, stats and the price still refresh on every run.
+const LISTING_PAGES = 14;
+const LISTING_TTL = 10 * 60_000;
+let listingCache: { asks: Map<number, number>; orders: number; at: number } | null = null;
+
 async function listings(key: string) {
+  if (listingCache && Date.now() - listingCache.at < LISTING_TTL) return listingCache;
   const asks = new Map<number, number>();
+  const started = Date.now();
   let next = "";
-  for (let page = 0; page < 6; page++) {
+  let orders = 0;
+  for (let page = 0; page < LISTING_PAGES && Date.now() - started < 9000; page++) {
     const d = await opensea(`/listings/collection/${SLUG}/all?limit=100${next ? `&next=${encodeURIComponent(next)}` : ""}`, key);
     for (const l of d.listings ?? []) {
       const p = l.price?.current;
       if (!p || !["ETH", "WETH"].includes(p.currency)) continue;
+      orders++;
       const id = Number(l.protocol_data.parameters.offer[0].identifierOrCriteria);
       const eth = Number(p.value) / 10 ** p.decimals;
       if (!asks.has(id) || eth < asks.get(id)!) asks.set(id, eth);
@@ -38,7 +49,8 @@ async function listings(key: string) {
     if (!d.next) break;
     next = d.next;
   }
-  return asks;
+  listingCache = { asks, orders, at: Date.now() };
+  return listingCache;
 }
 
 async function sales(key: string): Promise<Sale[]> {
@@ -130,7 +142,7 @@ export async function GET() {
   ]);
 
   const body: Market = {
-    hashEth: null, ethUsd: null, total: 0, rentStep: 0, listings: [], sales: [], stats: null, status, fetchedAt: Date.now() / 1000,
+    hashEth: null, ethUsd: null, total: 0, rentStep: 0, listings: [], orders: 0, sales: [], stats: null, status, fetchedAt: Date.now() / 1000,
     saleFeePct: 6, // 1% OpenSea + 5% creator, as read on 12 Sep; used only if the read fails
   };
   if (st.status === "fulfilled") body.stats = st.value;
@@ -143,8 +155,9 @@ export async function GET() {
   else status.sales = recent.reason.message;
 
   try {
-    const v = await valueListings(asks.status === "fulfilled" ? asks.value : new Map());
+    const v = await valueListings(asks.status === "fulfilled" ? asks.value.asks : new Map());
     Object.assign(body, v);
+    if (asks.status === "fulfilled") body.orders = asks.value.orders;
     status.opensea = asks.status === "fulfilled" ? `${v.listings.length} listings` : asks.reason.message;
   } catch (e) {
     status.chain = (e as Error).message.slice(0, 120);

@@ -210,7 +210,7 @@ export default function Dashboard() {
                   <div><span>Room to ceiling</span><b className="mono">{pct(b.room)}</b></div>
                   <div><span>A cat burns for</span><b className="mono">{f(b.burnNet)} ETH</b></div>
                   <div><span>OpenSea floor</span><b className="mono">{f(osFloor)} ETH</b></div>
-                  <div><span>Floor over burn</span><b className={`mono ${b.premium != null && b.premium > 0 ? "good" : "bad"}`}>{b.premium != null ? pct(b.premium) : "–"}</b></div>
+                  <div><span>Floor over burn</span><b className={`mono ${b.premium != null && b.premium > 0 ? "good" : "bad"}`}>{b.premium != null ? `${b.premium >= 0 ? "+" : ""}${(b.premium * 100).toFixed(1)}%` : "–"}</b></div>
                 </div>
                 <p className="vnote">
                   The floor: an epoch {chain?.epoch} cat burns for exactly 1,000 $HASH ({f(b.burnEth)} ETH at spot, {f(b.burnNet)} after the{" "}
@@ -296,8 +296,13 @@ export default function Dashboard() {
 
       <div className="cols">
         <section className="frame rare">
-          <div className="bar"><span>Listings</span><span>{rows.length} for ETH</span></div>
+          <div className="bar"><span>Listings</span><span>{rows.length} cats, {market?.orders ?? 0} orders</span></div>
           <div className="inner">
+            {market && market.orders > rows.length * 2 && (
+              <p className="vnote" style={{ marginBottom: 12 }}>
+                Most of those orders are the same few cats relisted every 15 minutes, so the table reads deep to find the rest. Listings refresh every 10 minutes.
+              </p>
+            )}
             <label className="final">
               Collection ends at <b className="mono">{ends.toLocaleString()}</b> cats{final == null ? " (today's count)" : ""}
               <input type="range" min={2000} max={20000} step={100} value={ends} onChange={(e) => setFinal(+e.target.value)} />

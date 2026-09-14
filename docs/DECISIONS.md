@@ -58,6 +58,12 @@ What replaced it is what the team talks about now. Their 13 Sep "two bounds" pos
 
 The cap is read live. The team's post said 0.05 ETH, and the owner did set that on 13 Sep at 03:31 UTC, then set it back to 0.04 at 05:08. The chain wins over the post.
 
+## listings read deep, cached 10 minutes
+
+On 14 Sep the listing table dropped from 400-odd cats to 3. Nothing was broken on our side. Three wallets were relisting the same three cats at 0.1148, each order living 15 minutes, and that stacked about 700 orders in front of everything else. The old reader stopped at 6 pages and never got past them.
+
+So the reader now goes 14 pages deep with a 9 second budget, and caches the result for 10 minutes per instance so the OpenSea key doesn't pay for it every run. The page says when orders far outnumber cats.
+
 ## buyback read from the browser
 
 Plain contract reads, so they go over the drpc socket like everything else on the chain side and cost no function time. It's the hook's `queue`, `capPerBlock`, `buybackSpent` and `buybackBurned`, the same calls hashcats.fun makes.

@@ -37,9 +37,9 @@ Every data source is free with no promises attached.
 
 ## numbers that go stale
 
-- The listing reader stops at 600 listings (6 pages). There were about 300 on 12 Sep and 4 on 14 Sep.
+- The listing reader goes 14 pages deep (1,400 orders) or 9 seconds, whichever comes first, and each instance keeps the result for 10 minutes. On 14 Sep the first ~700 orders were three wallets relisting three cats at 0.1148 every 15 minutes, and real listings started on page 8. If the table thins out again, check for the same thing before raising the page count.
 - `EGGS.due` in `lib/hashcats.ts` is the 48 hour mark from the team's 13 Sep post. Once breeding ships, swap the countdown for the real contract reads.
-- One run spends about 7 OpenSea reads now (up to 5 listing pages, sales, stats). At one run per 2 minutes per region that's well inside 600 an hour.
+- OpenSea spend: up to 14 listing reads every 10 minutes per instance, plus sales and stats on every run. Call it under 200 an hour for one busy region, against 600.
 
 ## dependencies
 

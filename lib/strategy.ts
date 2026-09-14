@@ -31,6 +31,7 @@ export type Market = {
   total: number;
   rentStep: number;
   listings: Listing[];
+  orders: number; // raw ETH listing orders read, before collapsing to one per cat
   sales: Sale[];
   stats: Stats | null;
   status: Record<string, string>;

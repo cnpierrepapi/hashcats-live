@@ -227,7 +227,7 @@ export default function Dashboard() {
         <h1 className="eggs">Two cats in, one egg out.</h1>
         <p className="sub">
           Hashcats teased breeding on 12 Sep. The first update is due by about 15 Sep, 22:00 UTC, and the team says to
-          have cats and $HASH on hand when it lands. {dueLine}
+          have cats and $HASH on hand when it lands.
         </p>
       </section>
 
@@ -256,7 +256,7 @@ export default function Dashboard() {
       <section className={`frame verdict ${gap ? (gap.gap >= 0 ? "work" : "alarm") : ""}`}>
         <div className="bar">
           <span>Mint gap</span>
-          <span>a fresh cat, minted and sold</span>
+          <span>per new cat</span>
         </div>
         <div className="inner">
           {gap ? (

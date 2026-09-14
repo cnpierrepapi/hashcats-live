@@ -142,8 +142,9 @@ export default function Dashboard() {
   // Vercel function, so a tab in the background stops asking and catches up when it comes back.
   useEffect(() => {
     let lastLoad = 0;
-    const load = async () => {
-      if (document.hidden) return;
+    const load = async (first = false) => {
+      // The first load always runs, or a page opened in a background tab would sit blank.
+      if (document.hidden && !first) return;
       lastLoad = Date.now();
       try {
         const m: Market = await (await fetch("/api/market")).json();

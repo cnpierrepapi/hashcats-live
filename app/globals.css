@@ -96,9 +96,8 @@ main { max-width: 84rem; margin: 0 auto; padding-block: calc(var(--px) * 5) calc
 .hero { display: grid; grid-template-columns: minmax(0, 1fr); gap: 0; margin-bottom: calc(var(--px) * 8); }
 .hero .kicker { font-family: var(--f-display); text-transform: uppercase; letter-spacing: .12em; font-size: 20px; color: var(--text-2); margin: 0 0 6px; }
 .hero h1 { font-family: var(--f-display); font-weight: 400; text-transform: uppercase; font-size: clamp(38px, 6.4vw, 78px); line-height: .92; margin: 0 0 18px; letter-spacing: .01em; max-width: 22ch; }
-.hero h1.buy { color: var(--work); }
-.hero h1.burn { color: var(--mine-deep); }
-.hero h1.wait { color: var(--rare); }
+.hero h1.open { color: var(--work); }
+.hero h1.stalled { color: var(--alarm); }
 .hero p.sub { margin: 0; max-width: 62ch; color: var(--text-2); }
 
 /* stats */
@@ -141,12 +140,15 @@ tbody tr:hover { background: var(--panel-2); }
 .kind.transfer { background: var(--panel-3); color: var(--text-2); }
 .when { margin-left: auto; color: var(--text-2); }
 
-/* mine or wait */
+/* mint gap, pace, buyback */
 .verdict { margin-bottom: calc(var(--px) * 8); }
+.panels { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 18px; align-items: start; }
+.panels .verdict { margin-bottom: calc(var(--px) * 6); }
+@media (max-width: 900px) { .panels { grid-template-columns: 1fr; } }
 .vline { font-family: var(--f-display); text-transform: uppercase; font-size: clamp(24px, 3vw, 34px); line-height: 1; margin: 4px 0 18px; }
-.vline.mine { color: var(--work); }
-.vline.close { color: var(--rare); }
-.vline.wait { color: var(--alarm); }
+.vline.good { color: var(--work); }
+.vline.bad { color: var(--alarm); }
+.vline.calm { color: var(--chain); }
 .vgrid { display: grid; grid-template-columns: repeat(auto-fit, minmax(170px, 1fr)); gap: 12px 22px; margin-bottom: 16px; }
 .vgrid span { display: block; font-family: var(--f-display); text-transform: uppercase; letter-spacing: .1em; font-size: 14px; line-height: 1; color: var(--text-2); margin-bottom: 5px; }
 .vgrid b { font-weight: 400; font-size: 26px; }

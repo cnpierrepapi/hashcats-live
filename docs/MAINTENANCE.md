@@ -27,16 +27,18 @@ Or skip all that: make a proper key once at opensea.io/settings/developer and it
 
 Every data source is free with no promises attached.
 
-- **drpc websocket** (`WSS_RPC` in `lib/hashcats.ts`) carries the live feed. If the light stays off, point it at another Robinhood Chain websocket. The official RPC has no websocket.
-- **Robinhood's public RPC** rate-limits chatty clients. The server makes one multicall per refresh, so it stays under.
-- **vast.ai** gives the 5090 price. If it breaks, the mine-or-wait panel waits forever. A fallback price would fix that, and it hasn't been written yet.
+- **drpc websocket** (`WSS_RPC` in `lib/hashcats.ts`) carries the live feed, and the pace panel's reads at past blocks. If the light stays off, point it at another Robinhood Chain websocket. The official RPC has no websocket and no archive state, so pace would go blank there.
+- **Robinhood's public RPC** rate-limits chatty clients. The server makes two multicalls per refresh, so it stays under.
 - **DexScreener** gives the $HASH price. The "$HASH chart" link is pinned to one pair, and it goes stale if liquidity moves pools.
+
+## function time
+
+`/api/market` is the only thing that bills. If usage climbs again, check the runtime logs first: lots of `cache=STALE` or `MISS` rows on `/api/market` means the function is running more than the cache should allow. The knobs are `s-maxage` in `app/api/market/route.ts` and `MARKET_POLL` in `app/page.tsx`. Don't add chain reads to the route. They belong in the browser.
 
 ## numbers that go stale
 
-- `RIG.ghs` in `lib/mining.ts` is hashcat's benchmark for a stock 5090 (6.40 GH/s). Swap in a real measurement if a miner ever gets written.
-- The listing reader stops at 600 listings (6 pages). There were about 300 on 12 Sep.
-- OpenSea spend is about 5 reads per refresh against a 30 second cache, which comes to roughly 600 an hour. That's the whole budget. If 429s appear, raise `s-maxage` in `app/api/market/route.ts`.
+- The listing reader stops at 600 listings (6 pages). There were about 300 on 12 Sep and 4 on 14 Sep.
+- The pace panel calls it "stalled" at 12 mints or fewer in 6 hours. That's a feel number, change it if it cries wolf.
 
 ## dependencies
 

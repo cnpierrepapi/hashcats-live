@@ -3,18 +3,21 @@ import { createPublicClient, http } from "viem";
 import { abi, COLLECTION, HASH_TOKEN, SLUG, robinhood } from "@/lib/hashcats";
 import type { Listing, Market, Sale } from "@/lib/strategy";
 
-// OpenSea's free key allows 600 reads an hour. Each run spends about four, and the
-// CDN answers everyone else from cache for 30s, so the budget holds at any traffic.
+// Every run costs function time, so the CDN answers from cache for 2 minutes and serves the
+// stale copy for 10 more while one run refreshes it. Listings and sales don't move faster than that.
 export const dynamic = "force-dynamic";
-export const maxDuration = 30;
+export const maxDuration = 15;
 
-const client = createPublicClient({ chain: robinhood, transport: http() });
+// A hung upstream shouldn't hold the function open. Each source gets 6s, then counts as failed.
+const TIMEOUT = 6000;
+const client = createPublicClient({ chain: robinhood, transport: http(undefined, { timeout: TIMEOUT }) });
 const wei = (v: bigint) => Number(v) / 1e18;
 
 async function opensea(path: string, key: string) {
   const r = await fetch(`https://api.opensea.io/api/v2${path}`, {
     headers: { "X-API-KEY": key, accept: "application/json" },
     cache: "no-store",
+    signal: AbortSignal.timeout(TIMEOUT),
   });
   if (!r.ok) throw new Error(`OpenSea ${r.status}`);
   return r.json();
@@ -52,28 +55,11 @@ async function sales(key: string): Promise<Sale[]> {
 }
 
 async function hashPrice() {
-  const r = await fetch(`https://api.dexscreener.com/tokens/v1/robinhood/${HASH_TOKEN}`, { cache: "no-store" });
+  const r = await fetch(`https://api.dexscreener.com/tokens/v1/robinhood/${HASH_TOKEN}`, { cache: "no-store", signal: AbortSignal.timeout(TIMEOUT) });
   const pairs: any[] = await r.json();
   const best = pairs.reduce((m, p) => ((p.liquidity?.usd ?? 0) > (m.liquidity?.usd ?? 0) ? p : m), pairs[0]);
   const native = Number(best.priceNative);
   return { hashEth: native, ethUsd: Number(best.priceUsd) / native };
-}
-
-/** Cheapest single RTX 5090 on vast.ai from a host with at least 98% reliability. */
-async function gpuPrice() {
-  const q = JSON.stringify({
-    gpu_name: { eq: "RTX 5090" },
-    num_gpus: { eq: 1 },
-    rentable: { eq: true },
-    reliability2: { gte: 0.98 },
-    type: "on-demand",
-    order: [["dph_total", "asc"]],
-    limit: 5,
-  });
-  const r = await fetch(`https://console.vast.ai/api/v0/bundles/?q=${encodeURIComponent(q)}`, { cache: "no-store" });
-  const offers: any[] = (await r.json()).offers ?? [];
-  if (!offers.length) throw new Error("no reliable 5090 on vast.ai");
-  return Number(offers[0].dph_total);
 }
 
 // OpenSea + creator fee on a sale. It barely ever changes, so one read per instance per 6h.
@@ -123,22 +109,19 @@ export async function GET() {
   const key = process.env.OPENSEA_API_KEY;
   const status: Record<string, string> = {};
   const noKey = () => Promise.reject(new Error("no OPENSEA_API_KEY"));
-  const [px, asks, recent, gpu, fees] = await Promise.allSettled([
+  const [px, asks, recent, fees] = await Promise.allSettled([
     hashPrice(),
     key ? listings(key) : noKey(),
     key ? sales(key) : noKey(),
-    gpuPrice(),
     key ? saleFees(key) : noKey(),
   ]);
 
   const body: Market = {
     hashEth: null, ethUsd: null, total: 0, rentStep: 0, listings: [], sales: [], status, fetchedAt: Date.now() / 1000,
-    usdPerHour: null, saleFeePct: 6, // 1% OpenSea + 5% creator, as read on 12 Sep; used only if the read fails
+    saleFeePct: 6, // 1% OpenSea + 5% creator, as read on 12 Sep; used only if the read fails
   };
   if (px.status === "fulfilled") Object.assign(body, px.value);
   else status.dex = px.reason.message;
-  if (gpu.status === "fulfilled") body.usdPerHour = gpu.value;
-  else status.gpu = gpu.reason.message;
   if (fees.status === "fulfilled") body.saleFeePct = fees.value;
   else status.fees = fees.reason.message;
   if (recent.status === "fulfilled") body.sales = recent.value;
@@ -153,6 +136,6 @@ export async function GET() {
   }
 
   return NextResponse.json(body, {
-    headers: { "Cache-Control": "public, s-maxage=30, stale-while-revalidate=60" },
+    headers: { "Cache-Control": "public, s-maxage=120, stale-while-revalidate=600" },
   });
 }

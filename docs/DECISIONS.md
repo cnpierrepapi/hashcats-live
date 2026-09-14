@@ -6,9 +6,13 @@ Vercel functions can't hold a websocket open, and polling the chain from a funct
 
 OpenSea needs a key, and a key can't ship to the browser. So that part runs server-side.
 
-## 30 second CDN cache on /api/market
+## 2 minute CDN cache on /api/market
 
-The free OpenSea key allows 600 reads an hour. One refresh spends roughly 4 (a couple of listing pages plus sales). Uncached, ten open tabs would blow the limit in fifteen minutes. With `s-maxage=30` the function runs at most about 120 times an hour no matter the traffic, which is around 480 reads. Tight but inside the limit. If listings grow past a few hundred, raise the cache to 45s.
+This started at 30 seconds. On 14 Sep the logs had the function running three or four times a minute at about 3.6 seconds a go, which is roughly five hours of function time a day for a page a handful of people look at. Three things stacked up. The 30 second cache went stale almost every time a tab polled. Every tab polled every 30 seconds, even ones sitting in the background. And every run waited on vast.ai for a GPU price.
+
+Now the cache is 2 minutes with 10 minutes of stale-while-revalidate, tabs poll once a minute and stop when hidden, and the vast.ai call is gone. Listings and sales don't change faster than that anyway. The chain half never touched the function and still doesn't.
+
+It also keeps the OpenSea key comfortable. The free key allows 600 reads an hour and one run spends about 4.
 
 ## value only listed cats, not the whole collection
 
@@ -18,9 +22,9 @@ The local scanner values all ~1,100 cats, which is about 4,400 subcalls and 16 s
 
 The collection-size slider changes every hold value. If the server did the valuing, every slider move would need a round trip. Keeping `value()` and `strategy()` in `lib/strategy.ts` and running them client-side makes the slider instant and keeps the server cache useful.
 
-## 1.15x before the page says buy
+## 1.15x before a listing gets a mention
 
-Burn value assumes spot price with no slippage, and the $HASH pool moves a lot. Hold value assumes a collection size nobody can promise. A 15% cushion keeps the sentence from flipping to "buy" on noise.
+Burn value assumes spot price with no slippage, and the $HASH pool moves a lot. Hold value assumes a collection size nobody can promise. A 15% cushion keeps a listing out of the headline on noise.
 
 ## the look matches hashcats.fun, rebuilt, not lifted
 
@@ -28,19 +32,23 @@ Same palette, same three Google fonts (Jersey 10, DotGothic16, VT323), same 3px 
 
 The header says "unofficial tracker" and so does the footer. Borrowing their look is fine for a fan tool, passing as their site isn't.
 
-## mine or wait
+## mint gap replaced mine or wait (14 Sep)
 
-The panel prices one RTX 5090 against today's numbers and says mine, close call, or wait.
+The first version priced a rented RTX 5090 against the target and said mine, close call or wait. By 14 Sep that question was dead. The target had fallen from 48 bits to 35, so hashing a cat costs close to nothing, and a public GPU miner (kaoscodes/hashcats-headless) had shipped anyway. The cost of a cat is now just the mint price.
 
-Cost per cat is 2^256 divided by the current target. That's the expected number of hashes before one lands under it. My first estimate averaged 2^(leading zeros) over the hashes that actually won, and it overshot by 2 to 4 times. A few lucky hashes with extra zeros drag that average up, and in theory it never settles. Straight from the target is the right number.
+And the mint price had run away. Epoch 10 costs 0.164 ETH. A fresh cat burns for 1000 $HASH, about 0.115 ETH after the swap fee, and the floor sells for about the same. Minting went from 1,164 cats in a day to 19 in six hours.
 
-The target swings a couple of bits with the mint streak, so the page takes the median of the last 12 reads, one every 5 seconds.
+So the panel asks one thing: does a new cat pay back its mint? Two exits, same as before. Burning pays 1000 $HASH less the hook's swap fee, read live from the hook. Selling pays the OpenSea floor less OpenSea and creator fees. The better one is the exit, and the gap is exit over mint, minus one.
 
-Two exits. Burning pays 1000 $HASH less the hook's swap fee, read live from the hook (2.5% on 12 Sep). Selling pays the OpenSea floor less their fees, read from the collections API (1% OpenSea plus 5% creator). The page takes whichever is better.
+The number worth watching is the break-even: mint price over (1000 times what's left after the swap fee). That's the $HASH price where minting pays again, and the page shows how far off it is.
 
-GPU price is the cheapest single 5090 on vast.ai from a host with 98%+ reliability, pulled live. Speed is hashcat's stock 5090 figure, 6.40 GH/s. Nobody has written a CUDA miner for this contract yet, so the verdict is the ceiling, not what you'd see on day one.
+If mining ever gets expensive again, cost per cat is 2^256 divided by the current target. Don't average 2^(leading zeros) over winning hashes. That overshot 2 to 4 times on 11 Sep.
 
-It wants a 30% cushion before it says mine. $HASH dropped 15% in one hour while this was being built.
+## pace and buyback read from the browser
+
+Both panels are plain contract reads, so they go over the drpc socket like everything else on the chain side and cost no function time. Pace is `totalMinted` and `burnedCount` now minus the same reads at blocks 1, 6 and 24 hours back. Buyback is the hook's `queue`, `buybackSpent` and `buybackBurned`, the same calls hashcats.fun makes.
+
+The listing slider now starts at today's count instead of 17,000. With minting stalled, rent from future mints is a guess, and the honest default is none.
 
 ## the OpenSea key expires
 

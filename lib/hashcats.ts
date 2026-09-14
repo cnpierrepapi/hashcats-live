@@ -28,10 +28,18 @@ export const abi = parseAbi([
   "function claimable(uint256 id) view returns (uint256)",
   "function rentFloor(uint256 id) view returns (uint256)",
   "function burnReward(uint256 id) view returns (uint256)",
+  "function epochStart(uint256 k) view returns (uint256)",
+  "function epochSize(uint256 k) view returns (uint256)",
 ]);
 
-// The Uniswap v4 hook's swap fee, taken on the ether side of every $HASH trade.
-export const hookAbi = parseAbi(["function currentFee() view returns (uint16)"]);
+// The Uniswap v4 hook: its swap fee on the ether side of every $HASH trade, and the buyback
+// it runs with mint proceeds. Same reads hashcats.fun makes.
+export const hookAbi = parseAbi([
+  "function currentFee() view returns (uint16)",
+  "function queue() view returns (uint256)",
+  "function buybackSpent() view returns (uint128)",
+  "function buybackBurned() view returns (uint128)",
+]);
 
 export const transferEvent = parseAbiItem(
   "event Transfer(address indexed from, address indexed to, uint256 indexed tokenId)",
